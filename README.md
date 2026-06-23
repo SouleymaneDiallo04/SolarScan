@@ -1,4 +1,4 @@
-# Détection de défauts sur panneaux solaires — Imagerie thermique (infrarouge)
+# SolarScan 🔆 — Détection de défauts sur panneaux solaires par imagerie thermique
 
 Détection automatisée d'anomalies thermiques sur modules photovoltaïques à partir d'**imagerie infrarouge de drone**, par **apprentissage profond (Deep Learning)** et **transfer learning**.
 
