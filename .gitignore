@@ -1,0 +1,14 @@
+# Données et poids (lourds, non versionnés)
+data/
+*.pt
+models/test_split.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
