@@ -53,7 +53,9 @@ SolarScan/
 │   ├── 04_cnn_transfer_learning.ipynb  # ResNet-18 (transfer learning)
 │   ├── 04b_cnn_improved.ipynb          # recipe amélioré
 │   ├── 04c_cnn_v3.ipynb                # EfficientNet-B0 + TTA (final)
-│   └── 05_gradcam.ipynb                # explicabilité (Grad-CAM)
+│   ├── 05_gradcam.ipynb                # explicabilité (Grad-CAM)
+│   ├── 06_final_model_and_error_analysis.ipynb  # modèle final + analyse d'erreurs + sauvegarde
+│   └── 07_demo_gradio.ipynb            # démo interactive (Gradio)
 └── src/                    # scripts CLI (alternative aux notebooks)
     ├── dataset.py · model.py · train.py · evaluate.py · gradcam.py · explore.py
 ```
