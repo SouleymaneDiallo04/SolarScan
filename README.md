@@ -120,6 +120,37 @@ Toute la démarche (EDA → préparation → baseline → modélisation → amé
 
 ---
 
+## 🏭 Architecture de production (vision opérationnelle)
+
+Les notebooks produisent un **prototype** : le *classifieur*. En conditions réelles, une centrale compte des **dizaines de milliers de panneaux** — il faut un **système**, pas une simple application.
+
+```mermaid
+flowchart TB
+    D[Drone thermique + RGB] --> U[Upload images / orthomosaique]
+    U --> DET[Detection et decoupe des modules]
+    DET --> GEO[Georeferencement GPS]
+    GEO --> API[API d inference FastAPI]
+    REG[(Registre modeles MLflow)] --> API
+    API --> M[Modele SolarScan ONNX/GPU]
+    GEO --> S3[(Stockage objet - images)]
+    API --> DB[(Resultats PostgreSQL/PostGIS)]
+    DB --> WEB[Dashboard web - carte et rapports]
+    DB --> MOB[App mobile - technicien terrain]
+    WEB --> CMMS[Integration GMAO]
+    MOB --> RT[Reentrainement feedback humain]
+    RT --> REG
+    API --> MON[Monitoring et derive]
+
+    classDef done fill:#0f3c82,color:#fff,stroke:#0f3c82;
+    class API,M done;
+```
+
+**Légende :** en bleu = **implémenté** dans ce repo (modèle + API d'inférence). Le reste (détection amont, géoréférencement, dashboard, mobile, MLOps) constitue la feuille de route vers une solution terrain complète.
+
+**Interface utilisateur :** le **dashboard web** est le cœur (ingénieurs d'inspection : carte, rapports, filtres) ; l'**app mobile** est un compagnon terrain (navigation GPS vers le panneau, validation des tickets, hors-ligne). Une **validation humaine** reste dans la boucle (les fausses alertes coûtent du temps technicien).
+
+---
+
 ## 👤 Auteur
 
 **Souleymane Diallo** — Élève-ingénieur IA & Data Science, ENSAM Meknès
