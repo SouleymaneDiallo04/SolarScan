@@ -4,3 +4,5 @@ fastapi
 uvicorn[standard]
 python-multipart
 pillow
+sqlalchemy
+psycopg2-binary

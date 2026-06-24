@@ -1,19 +1,19 @@
-# SolarScan — image Docker du service d'inférence
-# Build (depuis la racine du projet) :
+# SolarScan — image du service (API + dashboard)
+# Construit depuis la racine du projet (le modele .pt doit etre present) :
 #   docker build -t solarscan-api -f serve/Dockerfile .
-# Run :
-#   docker run -p 8000:8000 solarscan-api
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Dépendances (torch CPU pour une image légère)
+# Dependances (torch CPU pour une image plus legere)
 COPY serve/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
       --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Code + artefacts du modèle
-COPY serve/api.py serve/api.py
+# Code applicatif + artefacts du modele
+COPY core/ ./core/
+COPY serve/ ./serve/
+COPY dashboard/ ./dashboard/
 COPY classes.json solarscan_resnet18.pt ./
 
 EXPOSE 8000

@@ -1,0 +1,32 @@
+# SolarScan — stack déployable d'un coup : API (+ dashboard) + base PostGIS.
+#   docker compose up --build
+#   -> dashboard : http://localhost:8000/   |   API : http://localhost:8000/docs
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: solarscan
+      POSTGRES_PASSWORD: solarscan
+      POSTGRES_DB: solarscan
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U solarscan"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: serve/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://solarscan:solarscan@db:5432/solarscan
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
