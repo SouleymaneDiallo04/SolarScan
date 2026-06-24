@@ -22,14 +22,16 @@ Ce projet reproduit une brique clé de l'inspection automatisée de centrales so
 
 ~20 000 images thermiques de modules PV, réparties en 12 classes.
 
-1. Télécharger le dataset depuis le dépôt officiel : **https://github.com/RaptorMaps/InfraredSolarModules**
-2. Le décompresser dans `data/` de sorte à obtenir :
+Le dataset est distribué en une archive **`2020-02-14_InfraredSolarModules.zip`**. Télécharge-la depuis le [dépôt officiel](https://github.com/RaptorMaps/InfraredSolarModules) et décompresse-la dans `data/` pour obtenir :
 
 ```
 data/
-├── images/                 # sous-dossiers par classe (PNG thermiques)
-└── module_metadata.json    # mapping image -> classe d'anomalie
+├── images/                 # 20 000 images thermiques .jpg, nommées par numéro (ex. 0.jpg)
+└── module_metadata.json    # mapping numéro d'image -> classe d'anomalie
 ```
+
+> Format du JSON : `{"0": {"image_filepath": "images/0.jpg", "anomaly_class": "Cell"}, ...}`
+> Les images sont **à plat** dans `images/` (pas de sous-dossiers) ; la classe vient du JSON.
 
 > Les 12 classes : `Cell`, `Cell-Multi`, `Cracking`, `Hot-Spot`, `Hot-Spot-Multi`,
 > `Shadowing`, `Diode`, `Diode-Multi`, `Vegetation`, `Soiling`, `Offline-Module`, `No-Anomaly`.
@@ -80,7 +82,7 @@ py src/train.py --data_dir data --epochs 15 --batch_size 64
 py src/evaluate.py --data_dir data
 
 # 4. Visualiser une carte de chaleur Grad-CAM sur une image
-py src/gradcam.py --image data/images/Hot-Spot/xxxx.png
+py src/gradcam.py --image data/images/1000.jpg
 ```
 
 ---
