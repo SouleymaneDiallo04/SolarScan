@@ -1,81 +1,88 @@
-"""SolarScan — API d'inférence de production (FastAPI).
-
-Sert le modèle de classification d'anomalies thermiques derrière une API REST.
+"""SolarScan — API de production (FastAPI), adossée au pipeline et à la base.
 
 Endpoints
 ---------
-GET  /health         état du service
-POST /predict        une image thermique -> classe + probabilités + drapeau anomalie
-POST /predict_batch  plusieurs images -> rapport synthétique (utile pour un vol drone)
+GET   /health                  état du service
+POST  /predict                 une image -> classe + sévérité + perte estimée
+POST  /inspections             upload d'images -> traite (détection/classif/GPS/sévérité) -> stocke
+GET   /inspections             liste des inspections
+GET   /inspections/{id}        panneaux d'une inspection (triés par gravité)
+PATCH /panels/{id}             met à jour le statut maintenance (workflow terrain)
 
-Lancement local :
-    uvicorn serve.api:app --reload --port 8000
-Doc interactive : http://127.0.0.1:8000/docs
+Lancement : uvicorn serve.api:app --port 8000   (doc : /docs)
 """
 import io
-import json
+import os
+import tempfile
 from pathlib import Path
 
-import torch
-import torch.nn as nn
-from torchvision import transforms, models
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from pydantic import BaseModel
 from PIL import Image
-from fastapi import FastAPI, File, UploadFile
 
-ROOT = Path(__file__).resolve().parent.parent
-DEVICE = 'cpu'
-NORMAL_CLASS = 'No-Anomaly'
-
-with open(ROOT / 'classes.json', encoding='utf-8') as f:
-    CLASSES = json.load(f)
-
-model = models.resnet18()
-model.fc = nn.Linear(model.fc.in_features, len(CLASSES))
-model.load_state_dict(torch.load(ROOT / 'solarscan_resnet18.pt', map_location=DEVICE))
-model.eval()
-
-MEAN, STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-_tf = transforms.Compose([
-    transforms.Grayscale(3), transforms.Resize((224, 224)),
-    transforms.ToTensor(), transforms.Normalize(MEAN, STD)])
+from core import db, pipeline
+from core.classifier import classify, CLASSES
+from core.severity import assess
 
 app = FastAPI(
-    title='SolarScan API',
-    version='1.0',
-    description="Détection de défauts sur panneaux solaires à partir d'imagerie thermique.")
+    title='SolarScan API', version='2.0',
+    description="Inspection de panneaux solaires par imagerie thermique de drone.")
 
-
-def _infer(img: Image.Image) -> dict:
-    x = _tf(img).unsqueeze(0)
-    with torch.no_grad():
-        probs = torch.softmax(model(x), 1)[0].tolist()
-    idx = max(range(len(probs)), key=lambda i: probs[i])
-    return {
-        'classe': CLASSES[idx],
-        'confiance': round(probs[idx], 4),
-        'anomalie': CLASSES[idx] != NORMAL_CLASS,
-        'probabilites': {CLASSES[i]: round(probs[i], 4) for i in range(len(CLASSES))},
-    }
+db.init_db()
+NORMAL = 'No-Anomaly'
 
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'model': 'resnet18', 'classes': len(CLASSES)}
+    return {'status': 'ok', 'classes': len(CLASSES)}
 
 
 @app.post('/predict')
 async def predict(file: UploadFile = File(...)):
-    img = Image.open(io.BytesIO(await file.read()))
-    return _infer(img)
+    img = Image.open(io.BytesIO(await file.read())).convert('RGB')
+    classe, conf = classify(img)
+    return {'classe': classe, 'confiance': round(conf, 4),
+            'anomalie': classe != NORMAL, **assess(classe)}
 
 
-@app.post('/predict_batch')
-async def predict_batch(files: list[UploadFile] = File(...)):
-    results, n_anom = [], 0
+@app.post('/inspections')
+async def create_inspection(nom: str = Form('Inspection'),
+                            files: list[UploadFile] = File(...)):
+    # Les uploads sont écrits sur disque pour que le GPS EXIF soit lisible par chemin.
+    tmp = Path(tempfile.mkdtemp())
+    paths = []
     for f in files:
-        img = Image.open(io.BytesIO(await f.read()))
-        r = _infer(img)
-        r['fichier'] = f.filename
-        results.append(r)
-        n_anom += int(r['anomalie'])
-    return {'total': len(results), 'anomalies': n_anom, 'resultats': results}
+        p = tmp / (f.filename or 'img.jpg')
+        p.write_bytes(await f.read())
+        paths.append(p)
+    iid, panels = pipeline.process_images(paths, inspection_name=nom)
+    for p in paths:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+    return {'inspection_id': iid, 'n_panneaux': len(panels),
+            'n_anomalies': sum(p['anomalie'] for p in panels)}
+
+
+@app.get('/inspections')
+def get_inspections():
+    return db.list_inspections()
+
+
+@app.get('/inspections/{iid}')
+def get_inspection(iid: int):
+    panels = db.get_panels(iid)
+    if not panels:
+        raise HTTPException(404, 'inspection inexistante ou vide')
+    return {'inspection_id': iid, 'panels': panels}
+
+
+class StatusUpdate(BaseModel):
+    statut: str   # a_valider | valide | fausse_alerte | repare
+
+
+@app.patch('/panels/{pid}')
+def patch_panel(pid: int, body: StatusUpdate):
+    db.update_status(pid, body.statut)
+    return {'panel_id': pid, 'statut': body.statut}

@@ -3,6 +3,9 @@ data/
 *.pt
 models/test_split.json
 
+# Base de données locale (générée)
+*.db
+
 # Python
 __pycache__/
 *.pyc
