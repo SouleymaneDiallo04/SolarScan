@@ -165,6 +165,14 @@ uvicorn serve.api:app --port 8000      # doc interactive : http://127.0.0.1:8000
 docker build -t solarscan-api -f serve/Dockerfile . && docker run -p 8000:8000 solarscan-api
 ```
 
+### 📊 Dashboard d'inspection (`dashboard/app.py`)
+
+Carte interactive (folium) des panneaux sur leurs vraies coordonnées GPS, filtres par type de défaut, table des anomalies, export du rapport.
+
+```bash
+streamlit run dashboard/app.py      # http://localhost:8501
+```
+
 ---
 
 ## 👤 Auteur
