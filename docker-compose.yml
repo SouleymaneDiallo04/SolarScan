@@ -1,6 +1,6 @@
 # SolarScan — stack déployable d'un coup : API (+ dashboard) + base PostGIS.
 #   docker compose up --build
-#   -> dashboard : http://localhost:8000/   |   API : http://localhost:8000/docs
+#   -> dashboard : http://localhost:8090/   |   API : http://localhost:8090/docs
 services:
   db:
     image: postgis/postgis:16-3.4
@@ -23,7 +23,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://solarscan:solarscan@db:5432/solarscan
     ports:
-      - "8000:8000"
+      - "8090:8000"
     depends_on:
       db:
         condition: service_healthy
