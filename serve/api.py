@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from PIL import Image
 
@@ -30,6 +31,13 @@ app = FastAPI(
 
 db.init_db()
 NORMAL = 'No-Anomaly'
+_DASHBOARD = Path(__file__).resolve().parent.parent / 'dashboard' / 'index.html'
+
+
+@app.get('/', response_class=HTMLResponse)
+def dashboard():
+    """Sert le poste d'inspection (même origine que l'API -> pas de CORS)."""
+    return _DASHBOARD.read_text(encoding='utf-8')
 
 
 @app.get('/health')

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SolarScan — Poste d'inspection</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{--bg:#0b1220;--panel:#131c2e;--panel2:#1b2740;--line:#243352;--txt:#e7ecf5;
+    --muted:#93a2bd;--accent:#f59e0b;--green:#22c55e;--red:#ef4444;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+  header{display:flex;align-items:center;gap:14px;padding:16px 28px;
+    background:linear-gradient(90deg,#0f3c82,#1b2740);border-bottom:1px solid var(--line)}
+  header h1{font-size:19px}header p{font-size:12px;color:var(--muted)}
+  header select{margin-left:auto;background:var(--panel2);color:var(--txt);
+    border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px}
+  main{padding:22px 28px;max-width:1320px;margin:0 auto}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:16px}
+  .kpi .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .kpi .value{font-size:26px;font-weight:700;margin-top:6px}
+  .grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:20px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:18px}
+  .card h2{font-size:14px;margin-bottom:12px}
+  #map{height:380px;border-radius:10px}
+  .notice{color:var(--muted);font-size:13px;padding:30px;text-align:center;
+    background:var(--panel2);border-radius:10px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-size:11px;text-transform:uppercase}
+  .sev{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+  .Critique{background:rgba(239,68,68,.18);color:#fca5a5}
+  .Eleve{background:rgba(245,158,11,.18);color:#fcd34d}
+  .Modere{background:rgba(59,130,246,.18);color:#93c5fd}
+  .Faible{background:rgba(148,163,184,.18);color:#cbd5e1}
+  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--txt);
+    border-radius:7px;padding:4px 9px;font-size:11px;cursor:pointer;margin-right:4px}
+  .btn:hover{border-color:var(--accent)}
+  .statut{font-size:11px;color:var(--muted)}
+  .chips span{display:inline-block;padding:5px 10px;margin:3px;border-radius:8px;
+    font-size:12px;background:var(--panel2)}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:18px}
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:24px">☀️</span>
+  <div><h1>SolarScan — Poste d'inspection</h1>
+  <p>Triage des anomalies, priorisation économique et workflow de maintenance</p></div>
+  <select id="insp" onchange="loadInspection(this.value)"></select>
+</header>
+<main>
+  <section class="kpis" id="kpis"></section>
+  <section class="grid">
+    <div class="card"><h2>🗺️ Localisation des panneaux</h2><div id="mapwrap"></div></div>
+    <div class="card"><h2>⚠️ Par sévérité</h2><div class="chips" id="sev"></div>
+      <h2 style="margin-top:16px">💶 Impact</h2><div class="chips" id="impact"></div></div>
+  </section>
+  <section class="card">
+    <h2>📋 Anomalies priorisées (les plus graves d'abord)</h2>
+    <table><thead><tr><th>#</th><th>Type</th><th>Sévérité</th><th>Confiance</th>
+      <th>Perte €/an</th><th>Statut</th><th>Action</th></tr></thead>
+      <tbody id="rows"></tbody></table>
+  </section>
+</main>
+<footer>SolarScan · données servies par l'API · modèle ResNet-18 (macro-F1 0.66)</footer>
+<script>
+let MAP = null;
+const PRETTY = {Critique:'Critique', Eleve:'Élevé', Modere:'Modéré', Faible:'Faible', OK:'OK'};
+
+async function init(){
+  const insp = await (await fetch('/inspections')).json();
+  const sel = document.getElementById('insp');
+  sel.innerHTML = insp.map(i => `<option value="${i.id}">#${i.id} — ${i.nom} (${i.n_anomalies} anomalies)</option>`).join('');
+  if(insp.length) loadInspection(insp[0].id);
+}
+
+async function loadInspection(id){
+  const {panels} = await (await fetch('/inspections/'+id)).json();
+  const anom = panels.filter(p => p.anomalie === 1);
+  const perte = panels.reduce((s,p)=>s+(p.perte_eur_an||0),0);
+  const crit = anom.filter(p=>p.severite==='Critique').length;
+
+  document.getElementById('kpis').innerHTML = [
+    ['Panneaux', panels.length, ''],
+    ['Anomalies', anom.length, 'color:var(--red)'],
+    ['Critiques', crit, 'color:var(--red)'],
+    ['Taux', (100*anom.length/panels.length).toFixed(0)+' %', 'color:var(--accent)'],
+    ['Perte estimée', perte.toFixed(0)+' €/an', 'color:var(--accent)'],
+  ].map(k=>`<div class="kpi"><div class="label">${k[0]}</div><div class="value" style="${k[2]}">${k[1]}</div></div>`).join('');
+
+  // severite chips
+  const bySev = {};
+  anom.forEach(p=>bySev[p.severite]=(bySev[p.severite]||0)+1);
+  document.getElementById('sev').innerHTML = Object.entries(bySev)
+    .map(([s,n])=>`<span class="sev ${s}">${PRETTY[s]||s} : ${n}</span>`).join('') || '<span>Aucune</span>';
+  const kwh = panels.reduce((s,p)=>s+(p.perte_kwh_an||0),0);
+  document.getElementById('impact').innerHTML =
+    `<span>${kwh.toFixed(0)} kWh/an perdus</span><span>${perte.toFixed(0)} €/an</span>`;
+
+  // carte (seulement si GPS reel disponible)
+  const geo = panels.filter(p=>p.lat!=null && p.lon!=null);
+  const wrap = document.getElementById('mapwrap');
+  if(geo.length){
+    wrap.innerHTML = '<div id="map"></div>';
+    if(MAP){MAP.remove();}
+    MAP = L.map('map').setView([geo[0].lat, geo[0].lon], 20);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {maxZoom:22, attribution:'Esri'}).addTo(MAP);
+    geo.forEach(p=>{
+      const c = p.anomalie? '#ef4444':'#22c55e';
+      L.circleMarker([p.lat,p.lon],{radius:7,color:c,fillColor:c,fillOpacity:.9})
+        .bindPopup(`<b>Panneau ${p.id}</b><br>${p.classe} — ${p.severite}`).addTo(MAP);
+    });
+  } else {
+    wrap.innerHTML = '<div class="notice">📍 GPS indisponible : ces images n\'ont pas de métadonnées EXIF.<br>La carte satellite s\'activera automatiquement avec de vraies images drone géolocalisées.</div>';
+  }
+
+  // table priorisee
+  document.getElementById('rows').innerHTML = anom.map(p=>`
+    <tr><td>#${p.id}</td><td>${p.classe}</td>
+    <td><span class="sev ${p.severite}">${PRETTY[p.severite]||p.severite}</span></td>
+    <td>${Math.round(p.confiance*100)}%</td><td>${(p.perte_eur_an||0).toFixed(1)}</td>
+    <td class="statut">${p.statut}</td>
+    <td><button class="btn" onclick="setStatus(${p.id},'valide')">✓ Valider</button>
+        <button class="btn" onclick="setStatus(${p.id},'fausse_alerte')">✗ Fausse alerte</button>
+        <button class="btn" onclick="setStatus(${p.id},'repare')">🔧 Réparé</button></td></tr>`).join('');
+  window._curr = id;
+}
+
+async function setStatus(pid, statut){
+  await fetch('/panels/'+pid, {method:'PATCH', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({statut})});
+  loadInspection(window._curr);
+}
+init();
+</script>
+</body>
+</html>
