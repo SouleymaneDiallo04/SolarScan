@@ -149,6 +149,22 @@ flowchart TB
 
 **Interface utilisateur :** le **dashboard web** est le cœur (ingénieurs d'inspection : carte, rapports, filtres) ; l'**app mobile** est un compagnon terrain (navigation GPS vers le panneau, validation des tickets, hors-ligne). Une **validation humaine** reste dans la boucle (les fausses alertes coûtent du temps technicien).
 
+### 🛰️ Exemple — rapport d'inspection automatisé
+
+`pipeline/run_inspection.py` simule un **vol drone** sur une centrale : chaque panneau est classé, **géoréférencé** (GPS) et reporté.
+
+![Carte de la centrale](reports/plant_map.png)
+
+Sortie : `reports/report.csv` (position, GPS, état, type de défaut) + la **carte** ci-dessus. Exemple sur 200 panneaux : **45 anomalies (22 %)** localisées — vert = sain, rouge = anomalie.
+
+### 🔌 API d'inférence (`serve/api.py`)
+
+```bash
+uvicorn serve.api:app --port 8000      # doc interactive : http://127.0.0.1:8000/docs
+# ou en conteneur :
+docker build -t solarscan-api -f serve/Dockerfile . && docker run -p 8000:8000 solarscan-api
+```
+
 ---
 
 ## 👤 Auteur
