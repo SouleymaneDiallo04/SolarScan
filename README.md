@@ -12,7 +12,7 @@ Ce projet reproduit une brique clé de l'inspection automatisée de centrales so
 |---|---|
 | **Tâche** | Classification d'images thermiques (12 classes) |
 | **Modalité** | Imagerie infrarouge (thermique), 40×24 px niveaux de gris |
-| **Approche** | Transfer learning (ResNet-18 pré-entraîné ImageNet) |
+| **Approche** | Transfer learning (ResNet-18 → EfficientNet-B0) + TTA |
 | **Enjeu** | Fort déséquilibre de classes (la classe *No-Anomaly* domine) |
 | **Métriques** | Macro F1-score, accuracy, matrice de confusion |
 
@@ -41,19 +41,21 @@ data/
 ## 🗂️ Structure du projet
 
 ```
-solar-thermal-defect-detection/
+SolarScan/
 ├── README.md
 ├── requirements.txt
 ├── data/                   # dataset (non versionné)
-├── models/                 # poids entraînés (non versionné)
-├── outputs/                # métriques, matrice de confusion, Grad-CAM
-└── src/
-    ├── dataset.py          # Dataset PyTorch + splits stratifiés
-    ├── model.py            # ResNet-18 (transfer learning)
-    ├── train.py            # entraînement + validation (gestion du déséquilibre)
-    ├── evaluate.py         # métriques + matrice de confusion sur le test
-    ├── gradcam.py          # explicabilité (carte de chaleur Grad-CAM)
-    └── explore.py          # distribution des classes
+├── splits/                 # découpages train/val/test (CSV)
+├── notebooks/
+│   ├── 01_eda.ipynb                    # exploration des données (EDA)
+│   ├── 02_data_preparation.ipynb       # splits stratifiés
+│   ├── 03_baseline.ipynb               # baseline (Dummy + Random Forest)
+│   ├── 04_cnn_transfer_learning.ipynb  # ResNet-18 (transfer learning)
+│   ├── 04b_cnn_improved.ipynb          # recipe amélioré
+│   ├── 04c_cnn_v3.ipynb                # EfficientNet-B0 + TTA (final)
+│   └── 05_gradcam.ipynb                # explicabilité (Grad-CAM)
+└── src/                    # scripts CLI (alternative aux notebooks)
+    ├── dataset.py · model.py · train.py · evaluate.py · gradcam.py · explore.py
 ```
 
 ---
@@ -89,24 +91,29 @@ py src/gradcam.py --image data/images/1000.jpg
 
 ## 📊 Résultats
 
-> À compléter après l'entraînement avec **tes vrais chiffres** (`outputs/metrics.json`).
+Démarche **itérative** — chaque version corrige une faiblesse mesurée de la précédente :
 
-| Métrique | Score |
-|---|---|
-| Accuracy (test) | _à compléter_ |
-| Macro F1-score | _à compléter_ |
+| Modèle | Accuracy (test) | Macro-F1 (test) |
+|---|---|---|
+| ResNet-18 — transfer learning de base | 0.58 | 0.49 |
+| ResNet-18 — recipe amélioré *(2 phases, LR↓ + cosine, pondération adoucie, label smoothing)* | 0.80 | 0.65 |
+| **EfficientNet-B0 + TTA — modèle final** | **0.79** | **0.66** |
 
-Matrice de confusion : `outputs/confusion_matrix.png`
-Exemple d'explicabilité (Grad-CAM) : `outputs/gradcam.png`
+> Un classifieur naïf (toujours *No-Anomaly*) plafonne à ~0.06 de macro-F1 malgré ~50 % d'accuracy → d'où le choix du **macro-F1** comme métrique principale.
+
+**Lecture par classe :** les anomalies à signature spatiale nette sont bien détectées (**Diode** F1 0.96, **No-Anomaly** 0.89) ; les classes rares et subtiles (**Soiling**, **Hot-Spot**) restent plus difficiles — limite liée au **faible nombre d'exemples** (31-37 en test), pas au modèle.
+
+Toute la démarche (EDA → préparation → baseline → modélisation → amélioration) est détaillée dans les notebooks `notebooks/01` à `04c`.
 
 ---
 
 ## 🧠 Choix techniques
 
-- **Transfer learning** (ResNet-18 ImageNet) : images thermiques redimensionnées en 224×224 et converties en 3 canaux.
-- **Déséquilibre de classes** : pondération des classes (`balanced`) dans la fonction de perte.
-- **Augmentation de données** : flip horizontal + rotation légère.
-- **Sélection du modèle** : meilleur **macro F1** sur la validation (et non l'accuracy, trompeuse en cas de déséquilibre).
+- **Transfer learning en 2 phases** : on entraîne d'abord la tête (backbone gelé), puis on fine-tune tout avec un LR faible (1e-4) + cosine — pour ne pas détruire les features pré-entraînées.
+- **Déséquilibre de classes** : pondération adoucie (√) puis **sur-échantillonnage** (`WeightedRandomSampler`) des classes rares.
+- **Régularisation** : AdamW + weight decay, label smoothing, augmentation (flips, rotation, translation).
+- **Test-Time Augmentation (TTA)** : moyenne des prédictions sur l'image et ses miroirs (gain « gratuit »).
+- **Sélection du modèle** : meilleur **macro-F1** sur la validation (et non l'accuracy, trompeuse en cas de déséquilibre).
 - **Explicabilité** : Grad-CAM pour vérifier que le modèle regarde bien la zone chaude.
 
 ---
