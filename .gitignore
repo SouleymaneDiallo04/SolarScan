@@ -6,6 +6,9 @@ models/test_split.json
 # Base de données locale (générée)
 *.db
 
+# Secrets de déploiement (garder .env.example versionné)
+.env
+
 # Python
 __pycache__/
 *.pyc

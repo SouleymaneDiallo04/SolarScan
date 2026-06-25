@@ -1,17 +1,22 @@
 # SolarScan — stack déployable d'un coup : API (+ dashboard) + base PostGIS.
+#   cp .env.example .env        # (optionnel) ajuster les identifiants
 #   docker compose up --build
 #   -> dashboard : http://localhost:8090/   |   API : http://localhost:8090/docs
+#
+# Le modèle (solarscan_resnet18.pt) n'est pas dans l'image : il est monté
+# depuis l'hôte (lourd, non versionné). Surcharge possible via MODEL_FILE.
 services:
   db:
     image: postgis/postgis:16-3.4
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: solarscan
-      POSTGRES_PASSWORD: solarscan
-      POSTGRES_DB: solarscan
+      POSTGRES_USER: ${POSTGRES_USER:-solarscan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-solarscan}
+      POSTGRES_DB: ${POSTGRES_DB:-solarscan}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U solarscan"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-solarscan}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,10 +25,15 @@ services:
     build:
       context: .
       dockerfile: serve/Dockerfile
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg2://solarscan:solarscan@db:5432/solarscan
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-solarscan}:${POSTGRES_PASSWORD:-solarscan}@db:5432/${POSTGRES_DB:-solarscan}
+      MODEL_PATH: /app/solarscan_resnet18.pt
+    volumes:
+      # Poids montés en lecture seule : le build reste valide sans le fichier.
+      - ${MODEL_FILE:-./solarscan_resnet18.pt}:/app/solarscan_resnet18.pt:ro
     ports:
-      - "8090:8000"
+      - "${API_PORT:-8090}:8000"
     depends_on:
       db:
         condition: service_healthy

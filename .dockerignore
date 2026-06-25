@@ -1,0 +1,28 @@
+# Contexte de build minimal : seuls le code + classes.json sont nécessaires.
+.git
+.gitignore
+.dockerignore
+.venv
+__pycache__/
+**/__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Données, notebooks, sorties — jamais dans l'image
+data/
+notebooks/
+reports/
+splits/
+src/
+
+# Base locale SQLite (ne doit pas fuiter dans l'image)
+*.db
+
+# Le modèle est monté en volume au runtime, pas copié au build
+*.pt
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
