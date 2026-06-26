@@ -175,6 +175,24 @@ streamlit run dashboard/app.py      # http://localhost:8501
 
 ---
 
+## 🚀 Déploiement (Docker)
+
+Toute la stack — **API + dashboard + base PostGIS** — démarre en une commande :
+
+```bash
+cp .env.example .env            # ajuster le mot de passe pour la prod
+docker compose up -d --build
+# dashboard : http://localhost:8090/   ·   API + doc : http://localhost:8090/docs
+```
+
+- Le **modèle** (`solarscan_resnet18.pt`) n'est pas figé dans l'image : il est **monté en volume** au runtime (chemin via `MODEL_FILE`).
+- Données persistées dans **PostgreSQL/PostGIS** (volume `pgdata`). En local sans Docker, l'app retombe automatiquement sur **SQLite** — zéro config.
+- Conteneurs avec **healthchecks** et `restart: unless-stopped`.
+
+> Vérifié de bout en bout : création d'inspection via l'API → écriture en PostGIS → restitution dans le dashboard.
+
+---
+
 ## 👤 Auteur
 
 **Souleymane Diallo** — Élève-ingénieur IA & Data Science, ENSAM Meknès
