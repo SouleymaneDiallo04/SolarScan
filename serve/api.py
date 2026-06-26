@@ -18,6 +18,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from PIL import Image
 
@@ -28,6 +29,10 @@ from core.severity import assess
 app = FastAPI(
     title='SolarScan API', version='2.0',
     description="Inspection de panneaux solaires par imagerie thermique de drone.")
+
+# CORS : autorise l'app mobile (web / appareil) à appeler l'API.
+app.add_middleware(CORSMiddleware, allow_origins=['*'],
+                   allow_methods=['*'], allow_headers=['*'])
 
 db.init_db()
 NORMAL = 'No-Anomaly'
