@@ -1,11 +1,13 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
-/// URL de l'API SolarScan. Adapte selon la cible :
-///  - Emulateur Android      : http://10.0.2.2:8090
-///  - Flutter web (Chrome)   : http://localhost:8090
-///  - Téléphone réel (Wi-Fi) : http://<IP_DU_PC>:8090
-const String kApiBase = 'http://10.0.2.2:8090';
+/// URL de l'API SolarScan, choisie automatiquement selon la plateforme :
+///  - Flutter web (Chrome) : http://localhost:8090
+///  - Émulateur Android    : http://10.0.2.2:8090
+/// Téléphone réel sur le même Wi-Fi : remplace par http://<IP_DU_PC>:8090
+const String kApiBase =
+    kIsWeb ? 'http://localhost:8090' : 'http://10.0.2.2:8090';
 
 class Inspection {
   final int id;
