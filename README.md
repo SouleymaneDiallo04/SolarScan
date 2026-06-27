@@ -42,22 +42,23 @@ data/
 
 ```
 SolarScan/
-├── README.md
-├── requirements.txt
-├── data/                   # dataset (non versionné)
-├── splits/                 # découpages train/val/test (CSV)
-├── notebooks/
-│   ├── 01_eda.ipynb                    # exploration des données (EDA)
-│   ├── 02_data_preparation.ipynb       # splits stratifiés
-│   ├── 03_baseline.ipynb               # baseline (Dummy + Random Forest)
-│   ├── 04_cnn_transfer_learning.ipynb  # ResNet-18 (transfer learning)
-│   ├── 04b_cnn_improved.ipynb          # recipe amélioré
-│   ├── 04c_cnn_v3.ipynb                # EfficientNet-B0 + TTA (final)
-│   ├── 05_gradcam.ipynb                # explicabilité (Grad-CAM)
-│   ├── 06_final_model_and_error_analysis.ipynb  # modèle final + analyse d'erreurs + sauvegarde
-│   └── 07_demo_gradio.ipynb            # démo interactive (Gradio)
-└── src/                    # scripts CLI (alternative aux notebooks)
-    ├── dataset.py · model.py · train.py · evaluate.py · gradcam.py · explore.py
+├── notebooks/        # 01→07 : EDA · baseline · CNN · Grad-CAM · démo Gradio
+├── src/              # scripts CLI (alternative aux notebooks)
+├── core/             # LOGIQUE MÉTIER (production)
+│   ├── geo.py        #   géoréférencement EXIF (réel)
+│   ├── detector.py   #   détection des modules (YOLO, branchable)
+│   ├── classifier.py #   inférence du modèle
+│   ├── severity.py   #   sévérité + perte kWh/€ par défaut
+│   ├── pipeline.py   #   images → détection → classif → géo → sévérité → base
+│   └── db.py         #   persistance SQLAlchemy (SQLite en local / PostGIS en prod)
+├── serve/            # API FastAPI (+ Dockerfile) : /inspections, /panels, /predict
+├── dashboard/        # poste d'inspection web (servi par l'API)
+├── pipeline/         # run_inspection.py · geotag_demo.py
+├── mobile/           # app Flutter (technicien terrain)
+├── tests/            # tests (ex. test_geo.py — géoréférencement EXIF)
+├── docker-compose.yml  # stack déployable : API + PostGIS
+├── .env.example
+└── data/  splits/  reports/   # données & sorties
 ```
 
 ---
@@ -142,10 +143,10 @@ flowchart TB
     API --> MON[Monitoring et derive]
 
     classDef done fill:#0f3c82,color:#fff,stroke:#0f3c82;
-    class API,M done;
+    class API,M,GEO,DB,WEB,MOB done;
 ```
 
-**Légende :** en bleu = **implémenté** dans ce repo (modèle + API d'inférence). Le reste (détection amont, géoréférencement, dashboard, mobile, MLOps) constitue la feuille de route vers une solution terrain complète.
+**Légende :** en bleu = **implémenté & testé** (modèle, API, **géoréférencement EXIF réel**, base **PostGIS**, **dashboard web**, **app mobile**). Reste sur la feuille de route : **détection amont** (YOLO — attend des frames de centrales annotées), MLOps (MLflow, monitoring), intégration GMAO.
 
 **Interface utilisateur :** le **dashboard web** est le cœur (ingénieurs d'inspection : carte, rapports, filtres) ; l'**app mobile** est un compagnon terrain (navigation GPS vers le panneau, validation des tickets, hors-ligne). Une **validation humaine** reste dans la boucle (les fausses alertes coûtent du temps technicien).
 
@@ -165,12 +166,18 @@ uvicorn serve.api:app --port 8000      # doc interactive : http://127.0.0.1:8000
 docker build -t solarscan-api -f serve/Dockerfile . && docker run -p 8000:8000 solarscan-api
 ```
 
-### 📊 Dashboard d'inspection (`dashboard/app.py`)
+### 🖥️ Poste d'inspection web (`dashboard/index.html`)
 
-Carte interactive (folium) des panneaux sur leurs vraies coordonnées GPS, filtres par type de défaut, table des anomalies, export du rapport.
+Servi par l'API à la racine (**http://localhost:8090/**) : KPIs, **carte satellite** des panneaux (GPS réel), priorisation par **sévérité** et **perte €/an**, et **workflow** de maintenance (valider / fausse alerte / réparé) écrivant en base.
+
+*Vue rapide alternative (folium/Streamlit)* : `streamlit run dashboard/app.py`.
+
+### 📱 App mobile terrain (`mobile/`)
+
+App **Flutter** pour le technicien sur site : anomalies triées par gravité, **navigation GPS** vers le panneau, mise à jour du statut. Consomme l'API REST (CORS activé).
 
 ```bash
-streamlit run dashboard/app.py      # http://localhost:8501
+cd mobile && flutter create . && flutter pub get && flutter run
 ```
 
 ---
